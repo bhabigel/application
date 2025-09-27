@@ -1,26 +1,51 @@
 /**
- * Below are the colors that are used in the app. The colors are defined in the light and dark mode.
- * There are many other ways to style your app. For example, [Nativewind](https://www.nativewind.dev/), [Tamagui](https://tamagui.dev/), [unistyles](https://reactnativeunistyles.vercel.app), etc.
+ * Global color scheme for the app in both light and dark modes.
+ * These colors are used consistently across all components.
  */
-
-const tintColorLight = '#0a7ea4';
-const tintColorDark = '#fff';
 
 export const Colors = {
   light: {
-    text: '#11181C',
-    background: '#fff',
-    tint: tintColorLight,
-    icon: '#687076',
-    tabIconDefault: '#687076',
-    tabIconSelected: tintColorLight,
+    primary: '#00BCD4',
+    secondary: '#7B61FF',
+    background: '#FFFFFF',
+    card: '#e4cfcfff',
+    cardShadow: '#E5E5E5',
+    text: '#1A1A1A',
+    textSecondary: '#666666',
+    border: '#E5E5E5',
+    notification: '#FF3B30',
+    tabBarBackground: '#FFFFFF',
+    tabBarInactive: '#999999',
+    tabBarActive: '#00BCD4',
+    surface: '#FFFFFF',
+    surfaceVariant: '#F8F9FA',
+    accent: '#00BCD4',
+    link: '#00BCD4',
+    joinButton: '#00BCD4',
+    cardBackground: '#FFFFFF',
   },
   dark: {
-    text: '#ECEDEE',
-    background: '#151718',
-    tint: tintColorDark,
-    icon: '#9BA1A6',
-    tabIconDefault: '#9BA1A6',
-    tabIconSelected: tintColorDark,
+    primary: '#00BCD4',
+    secondary: '#7B61FF',
+    background: '#0A0A0A',
+    card: '#1E1E1E',
+    cardShadow: '#000000',
+    text: '#FFFFFF',
+    textSecondary: '#AAAAAA',
+    border: '#2C2C2C',
+    notification: '#FF453A',
+    tabBarBackground: '#1E1E1E',
+    tabBarInactive: '#666666',
+    tabBarActive: '#00BCD4',
+    surface: '#1E1E1E',
+    surfaceVariant: '#2C2C2C',
+    accent: '#00BCD4',
+    link: '#00BCD4',
+    joinButton: '#00BCD4',
+    cardBackground: '#1E1E1E',
   },
-};
+} as const;
+
+export type ThemeColors = typeof Colors.light;
+
+
