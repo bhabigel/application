@@ -1,9 +1,10 @@
-import { View, ScrollView, StyleSheet, Pressable, Image } from 'react-native';
-import { useColorScheme } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import { Colors } from '@/constants/Colors';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
+import { Colors } from '@/constants/Colors';
+import { getBlogPosts } from '@/services/api'; // 👈 importáld az API hívást
+import { Ionicons } from '@expo/vector-icons';
+import React, { useEffect, useState } from 'react';
+import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, useColorScheme, View } from 'react-native';
 
 interface NewsItem {
   id: string;
@@ -14,36 +15,31 @@ interface NewsItem {
   tag: string;
 }
 
-const NEWS_ITEMS: NewsItem[] = [
-  {
-    id: '1',
-    title: 'University Open Day',
-    summary: 'Join us for the annual University Open Day! Meet professors, explore facilities, and learn about our programs.',
-    date: 'Today',
-    image: require('@/assets/images/partial-react-logo.png'),
-    tag: 'Event'
-  },
-  {
-    id: '2',
-    title: 'New Computer Lab Opening',
-    summary: 'State-of-the-art computer lab opening next week. Features latest hardware and software for student use.',
-    date: 'Yesterday',
-    image: require('@/assets/images/partial-react-logo.png'),
-    tag: 'Announcement'
-  },
-  {
-    id: '3',
-    title: 'Student Achievement Awards',
-    summary: 'Congratulations to all students who received awards at the annual ceremony.',
-    date: '2 days ago',
-    image: require('@/assets/images/partial-react-logo.png'),
-    tag: 'News'
-  }
-];
-
 export default function HomeScreen() {
   const colorScheme = useColorScheme();
   const theme = Colors[colorScheme ?? 'light'];
+
+  const [news, setNews] = useState<NewsItem[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    getBlogPosts()
+      .then(data => {
+        // ha a backend más property neveket használ (pl. title helyett headline),
+        // akkor itt kell átalakítani
+        const mapped = data.map((item: any) => ({
+          id: item.id.toString(),
+          title: item.title ?? "Untitled",
+          summary: item.summary ?? "",
+          date: item.date ?? "N/A",
+          image: require('@/assets/images/partial-react-logo.png'), // ide majd jöhet API-s kép is
+          tag: item.tag ?? "News"
+        }));
+        setNews(mapped);
+      })
+      .catch(err => console.error("API hiba:", err))
+      .finally(() => setLoading(false));
+  }, []);
 
   const renderNewsItem = (item: NewsItem) => (
     <Pressable
@@ -76,13 +72,18 @@ export default function HomeScreen() {
           </Pressable>
         </View>
 
-        <View style={styles.newsList}>
-          {NEWS_ITEMS.map(renderNewsItem)}
-        </View>
+        {loading ? (
+          <ActivityIndicator size="large" color={theme.text} />
+        ) : (
+          <View style={styles.newsList}>
+            {news.map(renderNewsItem)}
+          </View>
+        )}
       </ScrollView>
     </ThemedView>
   );
 }
+
 
 const styles = StyleSheet.create({
   container: {
