@@ -1,58 +1,127 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ActivityIndicator, Image, ScrollView, StyleSheet, TextInput, TouchableOpacity, useColorScheme, View } from 'react-native';
 import { ThemedText } from '../../components/ThemedText';
 import { ThemedView } from '../../components/ThemedView';
 import { Colors } from '../../constants/Colors';
 import { useLanguage } from '../../hooks/useLanguage';
-import { getTeachers, Teacher } from '../../services/api';
+import { getSubjects, getTeachers, Teacher } from '../../services/api';
 
 export default function TeachersScreen() {
   const colorScheme = useColorScheme();
   const theme = Colors[colorScheme ?? 'light'];
-  const [teachers, setTeachers] = useState<Teacher[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const { language } = useLanguage();
+  
+  // State management
+  const [teachers, setTeachers] = useState<Teacher[]>([]);
+  const [subjects, setSubjects] = useState<string[]>([]);
+  const [selectedSubjects, setSelectedSubjects] = useState<string[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedTeacher, setSelectedTeacher] = useState<Teacher | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
+  // Load subjects
   useEffect(() => {
-    const fetchTeachers = async () => {
+    const loadSubjects = async () => {
+      if (!language) {
+        console.log('No language set, skipping subjects fetch');
+        return;
+      }
+      
+      try {
+        console.log('Loading subjects for language:', language);
+        const data = await getSubjects(language);
+        console.log('Loaded subjects:', data);
+        setSubjects(data);
+      } catch (error) {
+        console.error('Failed to fetch subjects:', error);
+        const errorMessage = error instanceof Error ? error.message : 'Failed to load subjects';
+        setError(errorMessage);
+      }
+    };
+    
+    loadSubjects();
+  }, [language]);
+
+  // Load teachers
+  useEffect(() => {
+    const loadTeachers = async () => {
+      if (!language) {
+        console.log('No language set, skipping teachers fetch');
+        return;
+      }
+
       try {
         setLoading(true);
         setError(null);
+        
+        console.log('Loading teachers for language:', language);
         const data = await getTeachers(language);
-        // Sort teachers by name
+        console.log('Loaded teachers:', data.length);
+        
         data.sort((a, b) => a.name.localeCompare(b.name));
         setTeachers(data);
       } catch (error) {
         console.error('Failed to fetch teachers:', error);
-        setError(error instanceof Error ? error.message : 'Failed to fetch teachers');
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        setError(errorMessage.length > 300 ? 
+          errorMessage.substring(0, 300) + '... (see console for full details)' : 
+          errorMessage
+        );
       } finally {
         setLoading(false);
       }
     };
 
-    if (language) {
-      fetchTeachers();
-    }
+    loadTeachers();
   }, [language]);
 
-  const filteredTeachers = useMemo(() => {
-    return teachers.filter(teacher => {
-      const matchesSearch = teacher.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
-                          teacher.subjects.some(subject => 
-                            subject.toLowerCase().includes(searchQuery.toLowerCase())
-                          );
+  // Filter teachers based on search query and selected subjects
+  const filteredTeachers = teachers.filter(teacher => {
+    const matchesSearch = 
+      teacher.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
+      teacher.subjects.some(subject => 
+        subject.toLowerCase().includes(searchQuery.toLowerCase())
+      );
+
+    if (selectedSubjects.length === 0) {
       return matchesSearch;
-    });
-  }, [teachers, searchQuery]);
+    }
+
+    const matchesSubjects = teacher.subjects.some(subject => 
+      selectedSubjects.includes(subject)
+    );
+
+    return matchesSearch && matchesSubjects;
+  });
 
   const renderTeacherList = () => (
     <ScrollView contentContainerStyle={styles.content}>
       {filteredTeachers.map(teacher => renderTeacherCard(teacher))}
     </ScrollView>
   );
+
+  const getImageUrl = (imagePath: string) => {
+    console.log('Raw image path:', imagePath);
+    
+    if (!imagePath) {
+      console.log('Empty image path provided');
+      return require('../../assets/images/partial-react-logo.png');
+    }
+    
+    if (imagePath.startsWith('../assets/')) {
+      console.log('Using fallback image');
+      return require('../../assets/images/partial-react-logo.png');
+    }
+
+    // Remove any leading slashes and clean the path
+    const cleanPath = imagePath.replace(/^\/+/, '');
+    console.log('Cleaned path:', cleanPath);
+    
+    const fullUrl = `https://api.cassini-org.info/${cleanPath}`;
+    console.log('Generated image URL:', fullUrl);
+    return fullUrl;
+  };
 
   const renderTeacherCard = (teacher: Teacher) => (
     <TouchableOpacity
@@ -61,10 +130,40 @@ export default function TeachersScreen() {
       onPress={() => setSelectedTeacher(teacher)}
     >
       <View style={styles.cardContent}>
-        <Image source={{ uri: teacher.image }} style={styles.teacherImage} />
+        <Image 
+          source={
+            typeof getImageUrl(teacher.image) === 'string'
+              ? { 
+                  uri: getImageUrl(teacher.image) as string,
+                  headers: {
+                    'Cache-Control': 'no-cache',
+                    'Pragma': 'no-cache'
+                  }
+                }
+              : getImageUrl(teacher.image)
+          }
+          style={styles.teacherImage}
+          defaultSource={require('../../assets/images/partial-react-logo.png')}
+          resizeMode="cover"
+          onLoadStart={() => {
+            console.log('Started loading image for:', teacher.name);
+            console.log('Image source:', JSON.stringify({
+              source: getImageUrl(teacher.image),
+              original: teacher.image
+            }, null, 2));
+          }}
+          onLoadEnd={() => console.log('Finished loading image for:', teacher.name)}
+          onError={(error) => {
+            console.error('Image load error for', teacher.name);
+            console.error('Original image path:', teacher.image);
+            console.error('Error details:', error.nativeEvent.error);
+          }}
+        />
         <View style={styles.teacherInfo}>
           <ThemedText style={styles.name}>{teacher.name}</ThemedText>
-          <ThemedText style={styles.description} numberOfLines={2}>{teacher.description}</ThemedText>
+          <ThemedText style={styles.description} numberOfLines={2}>
+            {teacher.description.replace(/<[^>]*>/g, '')}
+          </ThemedText>
           <View style={styles.subjectsContainer}>
             {teacher.subjects.map((subject, index) => (
               <View key={index} style={[styles.subjectTag, { backgroundColor: theme.primary }]}>
@@ -77,26 +176,112 @@ export default function TeachersScreen() {
     </TouchableOpacity>
   );
 
-  const renderTeacherDetails = () => (
-    <ScrollView contentContainerStyle={styles.detailsContent}>
-      <TouchableOpacity
-        style={styles.backButton}
-        onPress={() => setSelectedTeacher(null)}
-      >
-        <ThemedText style={styles.backButtonText}>← Back to list</ThemedText>
-      </TouchableOpacity>
-      <View style={[styles.detailsCard, { backgroundColor: theme.card }]}>
-        <Image source={{ uri: selectedTeacher?.image }} style={styles.detailsImage} />
-        <ThemedText style={styles.detailsName}>{selectedTeacher?.name}</ThemedText>
-        <ThemedText style={styles.detailsDescription}>{selectedTeacher?.description}</ThemedText>
-        <View style={styles.detailsSubjects}>
-          {selectedTeacher?.subjects.map((subject, index) => (
-            <View key={index} style={[styles.subjectTag, { backgroundColor: theme.primary }]}>
-              <ThemedText style={styles.subjectText}>{subject}</ThemedText>
-            </View>
-          ))}
+  const renderTeacherDetails = () => {
+    if (!selectedTeacher) return null;
+
+    const imageUrl = getImageUrl(selectedTeacher.image);
+    console.log('Loading detail image:', imageUrl);
+
+    return (
+      <ScrollView contentContainerStyle={styles.detailsContent}>
+        <TouchableOpacity
+          style={styles.backButton}
+          onPress={() => setSelectedTeacher(null)}
+        >
+          <ThemedText style={styles.backButtonText}>← Back to list</ThemedText>
+        </TouchableOpacity>
+        <View style={[styles.detailsCard, { backgroundColor: theme.card }]}>
+          <Image 
+            source={
+              typeof imageUrl === 'string'
+                ? { 
+                    uri: imageUrl,
+                    headers: {
+                      'Cache-Control': 'no-cache',
+                      'Pragma': 'no-cache'
+                    }
+                  }
+                : imageUrl
+            }
+            style={styles.detailsImage}
+            defaultSource={require('../../assets/images/partial-react-logo.png')}
+            resizeMode="cover"
+            onLoadStart={() => {
+              console.log('Started loading detail image for:', selectedTeacher.name);
+              console.log('Detail image source:', imageUrl);
+            }}
+            onLoadEnd={() => console.log('Finished loading detail image for:', selectedTeacher.name)}
+            onError={(error) => {
+              console.error(`Failed to load detail image for ${selectedTeacher.name}:`, error.nativeEvent.error);
+              console.error('Detail image URL was:', imageUrl);
+            }}
+          />
+          <ThemedText style={styles.detailsName}>{selectedTeacher.name}</ThemedText>
+          <ThemedText style={styles.detailsDescription}>
+            {selectedTeacher.description.replace(/<[^>]*>/g, '')}
+          </ThemedText>
+          <View style={styles.detailsSubjects}>
+            {selectedTeacher.subjects.map((subject, index) => (
+              <View key={index} style={[styles.subjectTag, { backgroundColor: theme.primary }]}>
+                <ThemedText style={styles.subjectText}>{subject}</ThemedText>
+              </View>
+            ))}
+          </View>
         </View>
-      </View>
+      </ScrollView>
+    );
+  };
+
+  if (loading) {
+    return (
+      <ThemedView style={[styles.container, { backgroundColor: theme.background, justifyContent: 'center' }]}>
+        <ActivityIndicator size="large" color={theme.text} />
+      </ThemedView>
+    );
+  }
+
+  if (error) {
+    return (
+      <ThemedView style={[styles.container, { backgroundColor: theme.background, justifyContent: 'center' }]}>
+        <ThemedText style={styles.errorText}>{error}</ThemedText>
+      </ThemedView>
+    );
+  }
+
+  const renderSubjectFilters = () => (
+    <ScrollView 
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      style={styles.subjectsContainer}
+      contentContainerStyle={styles.subjectsContent}
+    >
+      {subjects.map((subject, index) => (
+        <TouchableOpacity
+          key={index}
+          style={[
+            styles.subjectButton,
+            {
+              backgroundColor: selectedSubjects.includes(subject) 
+                ? theme.primary 
+                : theme.card
+            }
+          ]}
+          onPress={() => {
+            if (selectedSubjects.includes(subject)) {
+              setSelectedSubjects(prev => prev.filter(s => s !== subject));
+            } else {
+              setSelectedSubjects(prev => [...prev, subject]);
+            }
+          }}
+        >
+          <ThemedText style={[
+            styles.subjectButtonText,
+            { color: selectedSubjects.includes(subject) ? '#FFFFFF' : theme.text }
+          ]}>
+            {subject}
+          </ThemedText>
+        </TouchableOpacity>
+      ))}
     </ScrollView>
   );
 
@@ -122,7 +307,7 @@ export default function TeachersScreen() {
         renderTeacherDetails()
       ) : (
         <>
-          <View style={styles.searchContainer}>
+          <View style={styles.filterContainer}>
             <TextInput
               style={[styles.searchInput, { 
                 backgroundColor: theme.card,
@@ -132,8 +317,9 @@ export default function TeachersScreen() {
               value={searchQuery}
               onChangeText={setSearchQuery}
               placeholder="Search teachers or subjects..."
-              placeholderTextColor={theme.tabIconDefault}
+              placeholderTextColor={theme.textSecondary}
             />
+            {renderSubjectFilters()}
           </View>
           {renderTeacherList()}
         </>
@@ -149,7 +335,7 @@ const styles = StyleSheet.create({
   content: {
     padding: 16,
   },
-  searchContainer: {
+  filterContainer: {
     padding: 16,
     borderBottomWidth: 1,
     borderBottomColor: 'rgba(0,0,0,0.1)',
@@ -160,6 +346,23 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     paddingHorizontal: 12,
     fontSize: 16,
+    marginBottom: 12,
+  },
+  subjectsContainer: {
+    maxHeight: 40,
+  },
+  subjectsContent: {
+    paddingHorizontal: 4,
+  },
+  subjectButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    marginRight: 8,
+  },
+  subjectButtonText: {
+    fontSize: 14,
+    fontWeight: '500',
   },
   teacherCard: {
     marginVertical: 8,
@@ -195,7 +398,7 @@ const styles = StyleSheet.create({
     opacity: 0.8,
     marginBottom: 8,
   },
-  subjectsContainer: {
+  subjectsRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     marginTop: 4,
