@@ -102,25 +102,20 @@ export default function TeachersScreen() {
   );
 
   const getImageUrl = (imagePath: string) => {
-    console.log('Raw image path:', imagePath);
-    
-    if (!imagePath) {
-      console.log('Empty image path provided');
-      return require('../../assets/images/partial-react-logo.png');
-    }
-    
-    if (imagePath.startsWith('../assets/')) {
-      console.log('Using fallback image');
-      return require('../../assets/images/partial-react-logo.png');
+    if (!imagePath) return null;
+
+    // Ha már teljes URL
+    if (imagePath.startsWith('http')) {
+      return imagePath;
     }
 
-    // Remove any leading slashes and clean the path
-    const cleanPath = imagePath.replace(/^\/+/, '');
-    console.log('Cleaned path:', cleanPath);
-    
-    const fullUrl = `https://api.cassini-org.info/${cleanPath}`;
-    console.log('Generated image URL:', fullUrl);
-    return fullUrl;
+    // Normalizálás – ha hiányzik az első '/', tedd oda
+    const normalizedPath = imagePath.startsWith('/')
+      ? imagePath
+      : `/${imagePath}`;
+
+    // Az API útvonal szerint a képek az /uploads/ alatt vannak
+    return `https://api.cassini-org.info/uploads${normalizedPath}`;
   };
 
   const renderTeacherCard = (teacher: Teacher) => (
@@ -132,31 +127,20 @@ export default function TeachersScreen() {
       <View style={styles.cardContent}>
         <Image 
           source={
-            typeof getImageUrl(teacher.image) === 'string'
-              ? { 
-                  uri: getImageUrl(teacher.image) as string,
-                  headers: {
-                    'Cache-Control': 'no-cache',
-                    'Pragma': 'no-cache'
-                  }
-                }
-              : getImageUrl(teacher.image)
+            getImageUrl(teacher.image) 
+              ? { uri: getImageUrl(teacher.image) as string }
+              : undefined
           }
-          style={styles.teacherImage}
-          defaultSource={require('../../assets/images/partial-react-logo.png')}
+          style={[
+            styles.teacherImage,
+            !getImageUrl(teacher.image) && { backgroundColor: theme.card }
+          ]}
           resizeMode="cover"
-          onLoadStart={() => {
-            console.log('Started loading image for:', teacher.name);
-            console.log('Image source:', JSON.stringify({
-              source: getImageUrl(teacher.image),
-              original: teacher.image
-            }, null, 2));
-          }}
+          onLoadStart={() => console.log('Started loading image for:', teacher.name)}
           onLoadEnd={() => console.log('Finished loading image for:', teacher.name)}
           onError={(error) => {
-            console.error('Image load error for', teacher.name);
-            console.error('Original image path:', teacher.image);
-            console.error('Error details:', error.nativeEvent.error);
+            console.error(`Failed to load image for ${teacher.name}:`, error.nativeEvent.error);
+            console.error('Image URL was:', getImageUrl(teacher.image));
           }}
         />
         <View style={styles.teacherInfo}>
@@ -193,24 +177,15 @@ export default function TeachersScreen() {
         <View style={[styles.detailsCard, { backgroundColor: theme.card }]}>
           <Image 
             source={
-              typeof imageUrl === 'string'
-                ? { 
-                    uri: imageUrl,
-                    headers: {
-                      'Cache-Control': 'no-cache',
-                      'Pragma': 'no-cache'
-                    }
-                  }
-                : imageUrl
+              imageUrl 
+                ? { uri: imageUrl } 
+                : undefined
             }
-            style={styles.detailsImage}
-            defaultSource={require('../../assets/images/partial-react-logo.png')}
+            style={[
+              styles.detailsImage,
+              !imageUrl && { backgroundColor: theme.card }
+            ]}
             resizeMode="cover"
-            onLoadStart={() => {
-              console.log('Started loading detail image for:', selectedTeacher.name);
-              console.log('Detail image source:', imageUrl);
-            }}
-            onLoadEnd={() => console.log('Finished loading detail image for:', selectedTeacher.name)}
             onError={(error) => {
               console.error(`Failed to load detail image for ${selectedTeacher.name}:`, error.nativeEvent.error);
               console.error('Detail image URL was:', imageUrl);
@@ -268,9 +243,11 @@ export default function TeachersScreen() {
           ]}
           onPress={() => {
             if (selectedSubjects.includes(subject)) {
-              setSelectedSubjects(prev => prev.filter(s => s !== subject));
+              // Ha már ki van választva, töröljük a kijelölést
+              setSelectedSubjects([]);
             } else {
-              setSelectedSubjects(prev => [...prev, subject]);
+              // Ha új tantárgyat választunk, csak az lesz kiválasztva
+              setSelectedSubjects([subject]);
             }
           }}
         >
