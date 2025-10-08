@@ -32,7 +32,7 @@ export default function HomeScreen() {
           title: item.title ?? "Untitled",
           summary: item.summary ?? "",
           date: item.date ?? "N/A",
-          image: require('@/assets/images/partial-react-logo.png'), // ide majd jöhet API-s kép is
+          image: item.image ?? null,
           tag: item.tag ?? "News"
         }));
         setNews(mapped);
@@ -41,12 +41,44 @@ export default function HomeScreen() {
       .finally(() => setLoading(false));
   }, []);
 
+  const getImageUrl = (imagePath: string) => {
+    if (!imagePath) return null;
+
+    // Ha már teljes URL
+    if (imagePath.startsWith('http')) {
+      return imagePath;
+    }
+
+    // Normalizálás – ha hiányzik az első '/', tedd oda
+    const normalizedPath = imagePath.startsWith('/')
+      ? imagePath
+      : `/${imagePath}`;
+
+    // Az API útvonal szerint a képek az /uploads/ alatt vannak
+    return `https://api.cassini-org.info/uploads${normalizedPath}`;
+  };
+
   const renderNewsItem = (item: NewsItem) => (
     <Pressable
       key={item.id}
       style={[styles.newsCard, { backgroundColor: theme.card }]}
       onPress={() => console.log('Selected news:', item.title)}>
-      <Image source={item.image} style={styles.newsImage} />
+      <Image 
+        source={
+          item.image && getImageUrl(item.image)
+            ? { uri: getImageUrl(item.image) as string }
+            : undefined
+        }
+        style={[
+          styles.newsImage,
+          !item.image && { backgroundColor: theme.card }
+        ]}
+        resizeMode="cover"
+        onError={(error) => {
+          console.error(`Failed to load image for news: ${item.title}:`, error.nativeEvent.error);
+          console.error('Image URL was:', item.image ? getImageUrl(item.image) : 'no image');
+        }}
+      />
       <View style={styles.newsContent}>
         <View style={styles.newsHeader}>
           <View style={[styles.tagContainer, { backgroundColor: theme.accent }]}>

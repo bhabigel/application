@@ -23,6 +23,10 @@ export const Colors = {
     link: '#00BCD4',
     joinButton: '#00BCD4',
     cardBackground: '#FFFFFF',
+    theme: {
+      background: '#e1f5fe',
+      text: '#0288d1',
+    },
   },
   dark: {
     primary: '#00BCD4',
@@ -43,6 +47,10 @@ export const Colors = {
     link: '#00BCD4',
     joinButton: '#00BCD4',
     cardBackground: '#1E1E1E',
+    theme: {
+      background: '#1A237E',
+      text: '#E1F5FE',
+    },
   },
 } as const;
 

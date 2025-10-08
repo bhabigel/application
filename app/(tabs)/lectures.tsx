@@ -1,87 +1,108 @@
-import { Ionicons } from '@expo/vector-icons';
-import { FlatList, Pressable, StyleSheet, useColorScheme, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import { FlatList, Image, Pressable, StyleSheet, useColorScheme, View } from 'react-native';
 import { ThemedText } from '../../components/ThemedText';
 import { ThemedView } from '../../components/ThemedView';
 import { Colors } from '../../constants/Colors';
-
-interface Lecture {
-  id: string;
-  title: string;
-  teacher: string;
-  time: string;
-  room: string;
-  type: 'live' | 'recorded';
-}
-
-const SAMPLE_LECTURES: Lecture[] = [
-  {
-    id: '1',
-    title: 'Introduction to AI',
-    teacher: 'Dr. Sarah Johnson',
-    time: 'Monday 10:00 - 11:30',
-    room: 'Room 101',
-    type: 'live'
-  },
-  {
-    id: '2',
-    title: 'Data Structures and Algorithms',
-    teacher: 'Prof. Michael Chen',
-    time: 'Tuesday 14:00 - 15:30',
-    room: 'Room 203',
-    type: 'live'
-  },
-  {
-    id: '3',
-    title: 'Software Engineering Principles',
-    teacher: 'Dr. Emma Williams',
-    time: 'Available Now',
-    room: 'Online',
-    type: 'recorded'
-  }
-];
+import { useLanguage } from '../../hooks/useLanguage';
+import { getPresenters, Presenter } from '../../services/api';
+import { getImageUrl } from '../../services/images';
 
 export default function LecturesScreen() {
+  const [presenters, setPresenters] = useState<Presenter[]>([]);
+  const [selectedPresenter, setSelectedPresenter] = useState<Presenter | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const { language } = useLanguage();
   const colorScheme = useColorScheme();
   const theme = Colors[colorScheme ?? 'light'];
 
-  const renderLecture = ({ item }: { item: Lecture }) => (
-    <Pressable 
-      style={[styles.lectureItem, { backgroundColor: theme.card }]}
-      onPress={() => {
-        // Handle lecture selection
-        console.log('Selected lecture:', item.title);
-      }}>
-      <View style={styles.lectureInfo}>
-        <View style={styles.headerRow}>
-          <ThemedText style={styles.title}>{item.title}</ThemedText>
-          {item.type === 'live' ? (
-            <View style={[styles.badge, { backgroundColor: theme.accent }]}>
-              <ThemedText style={styles.badgeText}>LIVE</ThemedText>
+  useEffect(() => {
+    const fetchPresenters = async () => {
+      setIsLoading(true);
+      try {
+        const data = await getPresenters(language);
+        setPresenters(data);
+      } catch (error) {
+        console.error('Failed to fetch presenters:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchPresenters();
+  }, [language]);
+
+  const renderPresenter = ({ item }: { item: Presenter }) => {
+    const isSelected = selectedPresenter?.id === item.id;
+
+    return (
+      <Pressable 
+        style={[styles.presenterCard, { backgroundColor: theme.card }]}
+        onPress={() => setSelectedPresenter(isSelected ? null : item)}>
+        <View style={[
+          styles.imageContainer, 
+          { backgroundColor: theme.cardBackground }
+        ]}>
+          <Image
+            source={{ uri: item.image ? getImageUrl(item.image) : undefined }}
+            defaultSource={require('../../assets/images/partial-react-logo.png')}
+            style={styles.avatar}
+            resizeMode="cover"
+          />
+        </View>
+        <View style={styles.contentContainer}>
+          <ThemedText style={styles.name}>{item.name}</ThemedText>
+          <View style={styles.themeContainer}>
+            {item.themes.map((theme, index) => (
+              <View key={index} style={[
+                styles.themeTag, 
+                { backgroundColor: colorScheme === 'dark' ? '#1A237E' : '#e1f5fe' }
+              ]}>
+                <ThemedText 
+                  style={[
+                    styles.themeText, 
+                    { color: colorScheme === 'dark' ? '#E1F5FE' : '#0288d1' }
+                  ]} 
+                  numberOfLines={1}
+                  ellipsizeMode="tail"
+                >
+                  {theme}
+                </ThemedText>
+              </View>
+            ))}
+          </View>
+          {isSelected && (
+            <View style={styles.descriptionContainer}>
+              <ThemedText 
+                style={styles.description}
+                numberOfLines={3}
+                ellipsizeMode="tail"
+              >
+                {item.description.replace(/<\/?p>/g, '')}
+              </ThemedText>
             </View>
-          ) : null}
+          )}
         </View>
-        <ThemedText style={styles.teacher}>{item.teacher}</ThemedText>
-        <View style={styles.details}>
-          <View style={styles.detailItem}>
-            <Ionicons name="time-outline" size={16} color={theme.textSecondary} />
-            <ThemedText style={[styles.detailText, { color: theme.textSecondary }]}>{item.time}</ThemedText>
-          </View>
-          <View style={styles.detailItem}>
-            <Ionicons name="location-outline" size={16} color={theme.textSecondary} />
-            <ThemedText style={[styles.detailText, { color: theme.textSecondary }]}>{item.room}</ThemedText>
-          </View>
-        </View>
-      </View>
-    </Pressable>
-  );
+      </Pressable>
+    );
+  };
+
+  if (isLoading) {
+    return (
+      <ThemedView style={[styles.container, { backgroundColor: theme.background }]}>
+        <ThemedText style={styles.loadingText}>Betöltés...</ThemedText>
+      </ThemedView>
+    );
+  }
 
   return (
     <ThemedView style={[styles.container, { backgroundColor: theme.background }]}>
       <FlatList
-        data={SAMPLE_LECTURES}
-        renderItem={renderLecture}
+        data={presenters}
+        renderItem={renderPresenter}
         keyExtractor={item => item.id}
         contentContainerStyle={styles.listContent}
+        numColumns={2}
+        columnWrapperStyle={styles.row}
       />
     </ThemedView>
   );
@@ -92,10 +113,16 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   listContent: {
-    padding: 16,
+    padding: 8,
   },
-  lectureItem: {
-    padding: 16,
+  row: {
+    flex: 1,
+    justifyContent: 'space-between',
+    paddingHorizontal: 8,
+  },
+  presenterCard: {
+    flex: 1,
+    marginHorizontal: 8,
     marginBottom: 16,
     borderRadius: 12,
     elevation: 2,
@@ -103,47 +130,76 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
-  },
-  lectureInfo: {
-    flex: 1,
-  },
-  headerRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+    backgroundColor: 'white',
+    padding: 12,
     alignItems: 'center',
-    marginBottom: 8,
+    maxWidth: '45%',
+    minHeight: 280,
   },
-  title: {
-    fontSize: 18,
+  imageContainer: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    marginBottom: 12,
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    overflow: 'hidden',
+  },
+  avatar: {
+    width: '100%',
+    height: '100%',
+  },
+  contentContainer: {
+    width: '100%',
+    alignItems: 'center',
+  },
+  name: {
+    fontSize: 16,
     fontWeight: 'bold',
-    flex: 1,
+    marginBottom: 8,
+    textAlign: 'center',
+    paddingHorizontal: 4,
   },
-  badge: {
-    paddingHorizontal: 8,
+  themeContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    marginBottom: 12,
+    paddingHorizontal: 4,
+  },
+  themeTag: {
+    flex: 1,
+    minWidth: '45%',
+    maxWidth: '45%',
+    paddingHorizontal: 6,
     paddingVertical: 4,
     borderRadius: 12,
-    marginLeft: 8,
+    marginHorizontal: 2,
+    marginVertical: 2,
   },
-  badgeText: {
-    color: 'white',
-    fontSize: 12,
-    fontWeight: 'bold',
+  themeText: {
+    fontSize: 10,
+    fontWeight: '500',
+    textAlign: 'center',
   },
-  teacher: {
-    fontSize: 16,
-    marginBottom: 8,
+  descriptionContainer: {
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#eee',
   },
-  details: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  detailItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  detailText: {
-    marginLeft: 4,
+  description: {
     fontSize: 14,
-    opacity: 0.7,
+    lineHeight: 20,
+    color: '#666',
+    textAlign: 'center',
+  },
+  loadingText: {
+    textAlign: 'center',
+    marginTop: 24,
+    fontSize: 16,
   },
 });

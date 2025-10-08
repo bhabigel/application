@@ -26,14 +26,16 @@ const MOCK_DATA = {
       "title": "Szeptember kezdés",
       "summary": "Az új tanév elkezdődött! Sok sikert kívánunk minden diákunknak az új tanévhez.",
       "date": "2023-09-01",
-      "tag": "Hírek"
+      "tag": "Hírek",
+      "image": ""
     },
     {
       "id": 2,
       "title": "Őszi szünet",
       "summary": "Az őszi szünet október 23-tól november 3-ig tart. Kellemes pihenést kívánunk!",
       "date": "2023-10-01",
-      "tag": "Események"
+      "tag": "Események",
+      "image": ""
     }
   ]
 };
@@ -115,6 +117,14 @@ async function fetchData<T>(endpoint: string): Promise<T> {
   }
 }
 
+export interface Presenter {
+  id: string;
+  name: string;
+  description: string;
+  image: string;
+  themes: string[];
+}
+
 export interface Teacher {
   id: string;
   image: string;
@@ -152,6 +162,7 @@ export interface BlogPost {
   summary: string;
   date: string;
   tag: string;
+  image: string;
 }
 
 export async function getBlogPosts(): Promise<BlogPost[]> {
@@ -164,6 +175,62 @@ export async function getBlogPosts(): Promise<BlogPost[]> {
     return await fetchData<BlogPost[]>('/Blog/list');
   } catch (error) {
     console.error('Failed to fetch blog posts:', error);
+    throw error;
+  }
+}
+
+export async function getPresenters(languageCode: string = 'hu'): Promise<Presenter[]> {
+  try {
+    console.log('Fetching presenters with language:', languageCode);
+    return await fetchData<Presenter[]>(`/presenter/list?languageCode=${languageCode}`);
+  } catch (error) {
+    console.error('Failed to fetch presenters:', error);
+    throw error;
+  }
+}
+
+export async function getLectures(languageCode: string = 'hu'): Promise<Lecture[]> {
+  try {
+    console.log('Fetching lectures with language:', languageCode);
+    
+    if (isDevelopment) {
+      // Mock data for lectures in development
+      const presenter: Presenter = {
+        id: "0636820c-23fd-4d14-8fa7-c8b7ccae54da",
+        name: "Dr. Kálmán Attila",
+        description: "<p>Történész és a Bolyai Farkas Elméleti Líceum történelem szakos tanára.</p>",
+        image: "presenter/images/4ca58be7-2a71-466c-8b15-b50aceca6276.png",
+        themes: [
+          "Forradalom és emigráció. Az orosz arisztokrácia végnapjai",
+          "Habsburg látogatások Erdélyben",
+          "Politika és kultúra. A Mediciek világa",
+          "Az erdélyi arisztokrácia végnapjai"
+        ]
+      };
+
+      return [
+        {
+          id: '1',
+          presenterId: presenter.id,
+          presenter: presenter,
+          theme: presenter.themes[0],
+          time: 'Hétfő 10:00 - 11:30',
+          room: '101-es terem'
+        },
+        {
+          id: '2',
+          presenterId: presenter.id,
+          presenter: presenter,
+          theme: presenter.themes[1],
+          time: 'Kedd 14:00 - 15:30',
+          room: '203-as terem'
+        }
+      ];
+    }
+
+    return await fetchData<Lecture[]>(`/Lecture/list?languageCode=${languageCode}`);
+  } catch (error) {
+    console.error('Failed to fetch lectures:', error);
     throw error;
   }
 }
